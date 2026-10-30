@@ -57,4 +57,11 @@ test('无人机闲置后不补发积压子弹',()=>{start('drone');run('shotCd=-
 test('无人机能量不足3时不出弹，旧批次余额不能绕过耗能',()=>{start('drone');run('drone.energy=2.9;drone.shotCredit=25;fire()');assert.equal(run('bullets.length'),0);assert.equal(run('drone.energy'),2.9)});
 test('无人机真实发射命中坦克后扣5血，同时扣3蓝',()=>{start('drone');run('addTank(800);pointer={...worldToScreen(tanks[0].x,tanks[0].y)};fire()');assert.equal(run('drone.energy'),97);run('for(let i=0;i<60&&tanks[0].hp===90;i++)update(1/120)');assert.equal(run('tanks[0].hp'),85);assert.equal(run('bullets.filter(b=>!b.enemy).length'),0)});
 test('敌方无人机同样逐发扣3蓝',()=>{start();run('enemyDrones=[newDrone(heli.x+400,true)];enemyDrones[0].cd=0;updateSystems(.01,0,0)');assert.equal(run('enemyDrones[0].energy'),97)});
+test('直升机滑行轮子与地面接地点一致',()=>{start();run('stepFlight(heli,0,0,.016)');assert.equal(run('heli.y+helicopterFootOffset(heli)'),run('groundAt(heli.x)'))});
+test('地面高速滑行穿过废墟区域不受异常碰撞伤害',()=>{start();run('heli.energy=0;for(let i=0;i<1200;i++)stepFlight(heli,1,0,1/120)');assert.equal(run('heli.hp'),100);assert.equal(run('heli.grounded'),true)});
+test('刚离地收轮和轻微机身倾斜不会误判坠机',()=>{start();run("for(let i=0;i<62;i++)stepFlight(heli,1,0,1/60);action('gear');for(let i=0;i<30;i++)stepFlight(heli,1,0,1/60)");assert.equal(run('heli.hp'),100);assert.equal(run('heli.dead'),false);assert.equal(run('heli.grounded'),false)});
+test('向上飞行时机身擦地不会按下降坠毁处理',()=>{start();run('heli.grounded=false;heli.gear=.5;heli.gearTarget=0;heli.y=GROUND-52;heli.angle=.2;heli.vy=-5;stepFlight(heli,0,0,.016)');assert.equal(run('heli.hp'),100);assert.equal(run('heli.dead'),false)});
+test('同一环境撞击不会在每帧重复扣血，单次最多35',()=>{start();run('applyFlightCollisionDamage(heli,500);applyFlightCollisionDamage(heli,500);applyFlightCollisionDamage(heli,500)');assert.equal(run('heli.hp'),65);run('stepFlight(heli,0,0,.3);applyFlightCollisionDamage(heli,500)');assert.equal(run('heli.hp'),65)});
+test('起飞容错仅保护环境碰撞，敌方攻击仍能扣血',()=>{start();run('heli.collisionGrace=1;applyFlightCollisionDamage(heli,100);hurt(9)');assert.equal(run('heli.hp'),91)});
+test('机身多边形未接触墙体时不被宽大外框误判',()=>{start();run('heli.x=1200;heli.y=400;heli.angle=0;heli.flip=1');assert.equal(run('hullBuildingContact(heli,{x:1340,w:100,h:346})'),null);assert.ok(run('hullBuildingContact(heli,{x:1300,w:100,h:390})'))});
 console.log(`${n} gameplay checks passed`);
