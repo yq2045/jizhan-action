@@ -113,7 +113,7 @@ function spawnOperationEnemy(unit){
  if(unit.type==='heli'){for(let i=0;i<24&&Math.abs(slopeAt(x))>.05;i++)x=clamp(x+28,1000,WORLD-400);e=newEnemyHeli(x);enemyHelis.push(e)}
  else if(unit.type==='drone'){e=newDrone(x,true);enemyDrones.push(e)}
  else if(unit.type==='engineer'){e={x,y:groundAt(x)-23,hp:200,max:200,energy:100,vx:0,vy:0,dir:-1,turn:-1,angle:0,tread:0,phase:'travel',progress:0,work:0,site:x-200,cd:0,stage:'engineer',dead:false};engineers.push(e)}
- else{addTank(x);e=tanks[tanks.length-1];if(NEW_VEHICLES[unit.type]){e.vehicle=unit.type;e.hp=e.max=NEW_VEHICLES[unit.type].hp*.55;e.baseDamage=unit.type==='m1a2'?16:unit.type==='m109'?20:14;}}
+ else{addTank(x);e=tanks[tanks.length-1];if(NEW_VEHICLES[unit.type]){e.vehicle=unit.type;e.hp=e.max=NEW_VEHICLES[unit.type].hp*.55;}}
  e.y=groundAt(e.x)-(e.drone?180:e.enemy?70:23);e.dir=-1;e.turn=-1;if(e.enemy)e.flip=-1;
  e.attackBonus=op.endless?endlessBonus(op.wave):Math.floor((op.level.id-1)/3)*2;
  e.armor=op.endless?endlessBonus(op.wave):Math.floor((op.level.id-1)/4)*2;
@@ -125,10 +125,11 @@ const originalDamageEnemy=damageEnemy;
 damageEnemy=function(t,d){const wasDead=t.dead;originalDamageEnemy(t,Math.max(d*.1,d-(t.armor||0)));if(!wasDead&&t.dead&&operation.active&&t.marked)operation.markedKills++};
 function damageObjective(o,d){if(o.dead||d<=0)return;o.hp=Math.max(0,o.hp-d);if(o.hp===0){o.dead=true;effects(o.x,o.y,75,1.6);if(o.allied)finishOperation(false);else{save.cash+=200;persist()}}}
 function missionMissileContact(m,x0,y0,x1,y1){if(!operation.active||operation.finished)return null;let best=null;for(const o of operation.objects){if(o.dead||o.kind==='file'||!!m.enemy!==!!o.allied)continue;const t=segmentEntryTime(x0,y0,x1,y1,o.x-62,o.y-55,124,115);if(t!==null&&(!best||t<best.t))best={t,target:o}}return best}
-function missionProjectileHit(b){if(!operation.active||operation.finished||b.life<=0)return false;for(const o of operation.objects){if(o.dead||o.kind==='file'||!!b.enemy!==!!o.allied)continue;if(segmentHit(b.px,b.py,b.x,b.y,o.x-62,o.y-55,124,115)){damageObjective(o,b.damage);b.life=0;if(b.splash)areaBlast(b.x,b.y,b.splash,b.damage,null,o);impactEffect(b.x,b.y,false);return true}}return false}
-function areaBlast(x,y,radius,damage,exclude=null,excludeObject=null){effects(x,y,36,.9);rings.push({x,y,r:5,life:.4,speed:radius/.4});for(const e of enemies())if(e!==exclude){const d=Math.hypot(e.x-x,e.y-y);if(d<radius)damageEnemy(e,damage*(1-.5*d/radius));}if(operation.active)for(const o of operation.objects)if(!o.dead&&!o.allied&&o.kind==='base'&&o!==excludeObject){const d=Math.hypot(o.x-x,o.y-y);if(d<radius+55)damageObjective(o,damage*(1-.5*Math.min(d/radius,1)));}for(const f of forts)if(!f.dead&&Math.abs(f.x+f.rise-x)<radius)damageFort(f,damage)}
+function missionProjectileHit(b){if(!operation.active||operation.finished||b.life<=0)return false;for(const o of operation.objects){if(o.dead||o.kind==='file'||!!b.enemy!==!!o.allied)continue;if(segmentHit(b.px,b.py,b.x,b.y,o.x-62,o.y-55,124,115)){damageObjective(o,b.damage);b.life=0;if(b.splash)areaBlast(b.x,b.y,b.splash,b.damage,null,o,!!b.enemy);impactEffect(b.x,b.y,false);return true}}return false}
+function areaBlast(x,y,radius,damage,exclude=null,excludeObject=null,enemy=false){effects(x,y,36,.9);rings.push({x,y,r:5,life:.4,speed:radius/.4});const targets=enemy?[player()]:enemies();for(const e of targets)if(e!==exclude&&!e.dead){const d=Math.hypot(e.x-x,e.y-y);if(d<radius){const amount=damage*(1-.5*d/radius);enemy?hurt(amount):damageEnemy(e,amount);}}if(operation.active)for(const o of operation.objects)if(!o.dead&&!!o.allied===enemy&&o.kind!=='file'&&o!==excludeObject){const d=Math.hypot(o.x-x,o.y-y);if(d<radius+55)damageObjective(o,damage*(1-.5*Math.min(d/radius,1)));}for(const f of forts)if(!f.dead&&!!f.allied===enemy&&Math.abs(f.x+f.rise-x)<radius)damageFort(f,damage)}
+
 const originalDetonate=detonateMissile;
-detonateMissile=function(m){originalDetonate(m);if(!operation.active)return;const r=m.enemy?260:MISSILE_RADIUS[m.level],d=m.enemy?40+(m.owner?.attackBonus||0):MISSILE_DAMAGE[m.level];for(const o of operation.objects){if(o.dead||o.kind==='file'||!!o.allied!==!!m.enemy)continue;const distance=Math.hypot(o.x-m.x,o.y-m.y);if(distance<r+50)damageObjective(o,d*(1-.5*Math.min(distance/r,1)));}};
+detonateMissile=function(m){originalDetonate(m);if(!operation.active)return;const r=MISSILE_RADIUS[m.level||1],d=MISSILE_DAMAGE[m.level||1]+(m.enemy?(m.owner?.attackBonus||0):0);for(const o of operation.objects){if(o.dead||o.kind==='file'||!!o.allied!==!!m.enemy)continue;const distance=Math.hypot(o.x-m.x,o.y-m.y);if(distance<r+50)damageObjective(o,d*(1-.55*Math.min(distance/r,1)));}};
 function updateOperation(dt){
  const op=operation;if(!op.active||op.finished||player().dead)return;
  const l=op.level,h=player();pruneOperationWrecks();if(!l)return;
@@ -176,8 +177,25 @@ showResult=function(win){
  openModal(`<div class="eyebrow">${win?'MISSION COMPLETE / 任务完成':'OPERATION ENDED / 行动结束'}</div><h2>${win?l.title+' · 通关':op.endless?'无尽战场 · 第 '+op.wave+' 波':'第 '+l.id+' 关 · 行动失败'}</h2><p>${win?l.id===10?'十关战役全部完成！可以重玩任意关卡，或继续挑战无尽模式。':'下一关已解锁，首次通关奖励已保存。':op.endless?'最高波次已保存。升级装备后再挑战更远的战线。':player().dead?'载具已被摧毁。保留本次所获资金，可更换载具重新出击。':'我方机密设施被摧毁。请优先拦截接近设施的敌军。'}</p><div class="result-stats">击毁 ${kills} &nbsp; / &nbsp; 资金 ${save.cash}</div>${win&&l.id<10?'<button class="primary" id="nextMission">下一关 · 选择载具 ↗</button>':''}<div class="result-actions"><button class="secondary" id="retry">重试当前任务</button><button class="secondary" id="resultLevels">返回选关</button><button class="secondary" id="returnHome">返回主菜单</button></div>`);
  const retryKind=selectedVehicle;$('retry').onclick=()=>start(retryKind);$('resultLevels').onclick=openOperations;$('returnHome').onclick=home;if(win&&l.id<10)$('nextMission').onclick=()=>openMissionBrief(l.id+1);
 };
-const originalFire=fire;
-fire=function(){const spec=NEW_VEHICLES[selectedVehicle];if(!spec)return originalFire();const h=player();if(shotCd>0||h.dead||h.energy<spec.energy)return false;const a=aim();h.aimAngle=a.a;h.energy-=spec.energy;shotCd=spec.interval;const count=selectedVehicle==='m270'?3:1;for(let i=0;i<count;i++){const angle=a.a+(i-(count-1)/2)*.06;bullets.push({x:a.x+Math.cos(angle)*i*16,y:a.y+Math.sin(angle)*i*16,vx:Math.cos(angle)*spec.speed,vy:Math.sin(angle)*spec.speed,life:6,enemy:false,damage:spec.damage*(1+(save.tracks-1)*.2),shell:true,splash:spec.splash||0,gravity:spec.gravity||0,rocket:selectedVehicle==='m270'});}effects(a.x,a.y,4,.3);battleAudio.play(selectedVehicle==='m270'?'missile':'cannon',{x:h.x,y:h.y});return true};
+// All factions fire through the same weapon profiles and projectile factory.
+function weaponLevel(unit,kind,enemy){return enemy?clamp(unit.gunLevel||unit.level||1,1,3):kind==='heli'?save.gun:kind==='drone'?1:save.tracks}
+function weaponProfile(kind,level=1){
+ level=clamp(level,1,3);const modern=NEW_VEHICLES[kind];if(modern)return{...modern,damage:modern.damage*(1+(level-1)*.2),count:kind==='m270'?3:1,life:6,shell:true,visual:kind==='m270'?'rocket':kind==='m109'?'grenade':'heavy',sound:kind==='m270'?'missile':'cannon'};
+ if(kind==='drone')return{damage:DRONE_DAMAGE,energy:DRONE_ENERGY,interval:DRONE_INTERVAL,speed:1050,life:1.6,count:1,visual:'drone',sound:'drone'};
+ if(kind==='heli')return{damage:[0,12,20,30][level],energy:1,interval:.1,speed:1050,life:1.6,count:1,visual:'gun',sound:'gun',batch:5};
+ return{damage:[0,45,65,90][level],energy:2,interval:.65,speed:950,life:2.4,count:1,shell:true,visual:'shell',sound:'cannon'};
+}
+function unitWeaponAim(unit,kind,tx,ty){if(kind==='drone')return droneAim(unit,tx,ty);if(kind!=='heli')return turretAim(unit,tx,ty);const a=Math.atan2(ty-unit.y,tx-unit.x);return{x:unit.x+Math.cos(a)*72,y:unit.y+Math.sin(a)*22,a,dx:Math.cos(a),dy:Math.sin(a)}}
+function emitVehicleWeapon(unit,kind,a,enemy=false,level=1){
+ if(unit.dead)return false;const w=weaponProfile(kind,level);unit.energy=unit.energy??100;
+ if(w.batch){if(!spendShot(unit))return false;}else{if(unit.energy<w.energy)return false;unit.energy-=w.energy;}
+ unit.aimAngle=a.a;
+ for(let i=0;i<w.count;i++){const angle=a.a+(i-(w.count-1)/2)*.06;bullets.push({x:a.x+Math.cos(angle)*i*16,y:a.y+Math.sin(angle)*i*16,vx:Math.cos(angle)*w.speed,vy:Math.sin(angle)*w.speed,life:w.life,enemy,owner:unit,damage:w.damage+(enemy?(unit.attackBonus||0):0),shell:!!w.shell,droneShot:kind==='drone',splash:w.splash||0,gravity:w.gravity||0,rocket:w.visual==='rocket',weapon:w.visual});}
+ particles.push({x:a.x,y:a.y,vx:a.dx*40,vy:a.dy*40,life:.045,max:.045,size:kind==='drone'?1.5:w.shell?16:9,smoke:false});battleAudio.play(w.sound,{x:unit.x,y:unit.y});return w.interval;
+}
+fire=function(){const h=player();if(shotCd>0||h.dead)return false;const interval=emitVehicleWeapon(h,selectedVehicle,aim(),false,weaponLevel(h,selectedVehicle,false));if(interval===false)return false;shotCd=interval;return true};
+function fireEnemyWeapon(unit,kind,target){if(unit.cd>0||unit.dead)return false;const off=aimError(target),a=unitWeaponAim(unit,kind,target.x+off.x,target.y+off.y),interval=emitVehicleWeapon(unit,kind,a,true,weaponLevel(unit,kind,true));if(interval===false)return false;unit.cd=interval;return true}
+
 const originalReduction=damageReduction;damageReduction=function(){return originalReduction()*(selectedVehicle==='m1a2'?.8:1)};
 const originalTurret=turretAim;
 turretAim=function(t,tx,ty){const kind=t.vehicle||(t===playerTank?selectedVehicle:null);if(!NEW_VEHICLES[kind])return originalTurret(t,tx,ty);const pivot={x:t.x,y:t.y-(kind==='m1a2'?29:kind==='m109'?40:37)},a=Math.atan2(ty-pivot.y,tx-pivot.x),length=kind==='m1a2'?101:kind==='m109'?87:70;return{x:pivot.x+Math.cos(a)*length,y:pivot.y+Math.sin(a)*length,a,dx:Math.cos(a),dy:Math.sin(a),pivot}};
@@ -196,10 +214,19 @@ function drawModernVehicle(t,kind){
  if(kind==='m270'){poly([[-52,-23],[-50,-54],[-19,-55],[-2,-34],[-2,-23]],col,'#1a2b2d',2);poly([[-43,-49],[-23,-49],[-12,-36],[-43,-36]],'#284550','#a2b4a0');}
  if(t.allied)rect(-50,-18,9,5,'#8fe4d0');ctx.restore();
  const pivot=turretAim(t,t.x+Math.cos(t.aimAngle||0)*1000,t.y-30+Math.sin(t.aimAngle||0)*1000).pivot;
- ctx.save();ctx.translate(pivot.x,pivot.y);ctx.rotate(t.aimAngle||0);
- if(kind==='m270'){rect(-22,-21,81,42,col);rect(-20,-20,78,4,'#a5b191');for(let row=0;row<2;row++)for(let i=0;i<6;i++){rect(-15+i*11,-14+row*16,8,12,'#293d33');circle(-11+i*11,-8+row*16,3,'#c7b168')}rect(58,-23,12,46,'#26382f');}
- else{poly([[-31,-15],[-22,-26],[17,-25],[36,-9],[32,15],[-31,15]],col,'#263c35',2);const length=kind==='m1a2'?101:87;rect(20,-6,length-26,12,col);rect(length-13,-9,13,18,'#394b3b');line(29,-4,length-17,-4,'#c1c4a1',2);circle(-5,-10,10,'#364b3d','#acb695');if(kind==='m109'){rect(-35,-21,18,40,'#607364');line(-29,-21,-29,-49,'#9eb69c',2)}}
- ctx.restore();if(t.hp<t.max){rect(t.x-42,t.y-74,84,4,'#1a282b');rect(t.x-42,t.y-74,84*t.hp/t.max,4,t.allied?'#91cdb0':'#df7e67')}
+ const angle=t.aimAngle||0,facing=Math.cos(angle)<0?-1:1;
+ if(kind==='m270'){
+  // Mirror horizontally before pitching: a launcher aiming left must keep its top above its base.
+  ctx.save();ctx.translate(pivot.x,pivot.y);ctx.scale(facing,1);ctx.rotate(Math.atan2(Math.sin(angle),Math.abs(Math.cos(angle))));
+  rect(-22,-21,81,42,col);rect(-20,-20,78,4,'#a5b191');for(let row=0;row<2;row++)for(let i=0;i<6;i++){rect(-15+i*11,-14+row*16,8,12,'#293d33');circle(-11+i*11,-8+row*16,3,'#c7b168')}rect(58,-23,12,46,'#26382f');ctx.restore();
+ }else{
+  // Only the barrel follows the full aim angle. The turret, hatch and antenna stay upright.
+  ctx.save();ctx.translate(pivot.x,pivot.y);ctx.rotate(angle);const length=kind==='m1a2'?101:87;rect(20,-6,length-26,12,col);rect(length-13,-9,13,18,'#394b3b');line(29,-4,length-17,-4,'#c1c4a1',2);ctx.restore();
+  ctx.save();ctx.translate(pivot.x,pivot.y);ctx.rotate(t.angle||0);ctx.scale(facing,1);
+  poly([[-31,-15],[-22,-26],[17,-25],[36,-9],[32,15],[-31,15]],col,'#263c35',2);circle(-5,-10,10,'#364b3d','#acb695');
+  if(kind==='m109'){rect(-35,-21,18,40,'#607364');line(-29,-21,-29,-49,'#9eb69c',2)}ctx.restore();
+ }
+ if(t.hp<t.max){rect(t.x-42,t.y-74,84,4,'#1a282b');rect(t.x-42,t.y-74,84*t.hp/t.max,4,t.allied?'#91cdb0':'#df7e67')}
 }
 const originalBackground=background;
 background=function(menu=false){if(menu||!operation.active)return originalBackground(menu);drawMapBackground(MAP_THEMES[operation.theme])};
@@ -238,4 +265,5 @@ $('start').onclick=openOperations;
 const guide=document.createElement?.('div');if(guide){guide.id='objectiveGuide';guide.className='objective-guide';$('hud').appendChild(guide)}
 const originalSnapshot=window.gameSnapshot;window.gameSnapshot=()=>({...originalSnapshot(),operation:JSON.parse(JSON.stringify(operation)),campaignProgress:{...campaignProgress}});
 
-function drawRocketProjectile(b){ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.vy,b.vx));poly([[-8,-3],[8,-3],[14,0],[8,3],[-8,3]],'#dac78d','#566852');poly([[-8,-2],[-20-Math.sin(time*45)*4,0],[-8,2]],'#ffae3d');rect(-4,-3,3,6,'#dc8e45');ctx.restore()}
+function drawRocketProjectile(b){const color=b.enemy?'#ef6865':'#dac78d';ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.vy,b.vx));poly([[-8,-3],[8,-3],[14,0],[8,3],[-8,3]],color,'#566852');poly([[-8,-2],[-20-Math.sin(time*45)*4,0],[-8,2]],'#ffae3d');rect(-4,-3,3,6,b.enemy?'#ffaaa2':'#dc8e45');ctx.restore()}
+function drawWeaponProjectile(b){const visual=b.weapon||(b.rocket?'rocket':b.droneShot?'drone':b.shell?'shell':'gun');if(visual==='rocket'){drawRocketProjectile(b);return}const color=b.enemy?'#f36965':'#ffb347';ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.vy,b.vx));if(visual==='grenade'){poly([[-8,-4],[6,-4],[11,0],[6,4],[-8,4]],color,'#584d3d');rect(-5,-4,3,8,b.enemy?'#ffaaa2':'#e6d19a');}else if(visual==='shell'||visual==='heavy'){const length=visual==='heavy'?16:11;poly([[-length,-3],[3,-3],[9,0],[3,3],[-length,3]],color,'#6e6251');line(-length-12,0,-length,0,color,2);}else{ctx.shadowColor=color;ctx.shadowBlur=8;line(0,0,visual==='drone'?-7:-15,0,color,visual==='drone'?1.5:2.5);}ctx.restore()}
