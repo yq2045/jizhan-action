@@ -5,7 +5,7 @@ let W=innerWidth,H=innerHeight,dpr=1,viewScale=1,time=0,last=0,mode='menu',pause
 let bullets=[],missiles=[],particles=[],rings=[],tanks=[],buildings=[],kills=0,shake=0,radarLeft=0,shotCd=0,missileCd=0,toastUntil=0,spawnClock=0;
 let save={cash:600,gun:1,missile:1,repairs:1,radars:1,tracks:1};try{let s=JSON.parse(localStorage.getItem('jizhan-v1'));if(s)for(const k of Object.keys(save))if(Number.isFinite(s[k]))save[k]=clamp(s[k],k==='gun'||k==='missile'||k==='tracks'?1:0,k==='gun'||k==='missile'||k==='tracks'?3:1e8)}catch{}
 const persist=()=>{try{localStorage.setItem('jizhan-v1',JSON.stringify(save))}catch{}};
-let heli;function resetHeli(){heli={x:400,y:GROUND-48,vx:0,vy:0,angle:0,dir:1,flip:1,hp:100,energy:100,gear:1,gearTarget:1,grounded:true,boosted:false,dead:false,wheel:0,hit:0,rotor:0,rotorSpeed:0,run:0,buffer:0,landing:false,shotCredit:0}}
+let heli;function resetHeli(){heli={x:400,y:GROUND-70,vx:0,vy:0,angle:0,dir:1,flip:1,hp:100,energy:100,gear:1,gearTarget:1,grounded:true,boosted:false,dead:false,wheel:0,hit:0,rotor:0,rotorSpeed:0,run:0,buffer:0,landing:false,shotCredit:0,collisionGrace:0,collisionCooldown:0}}
 resetHeli();
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;viewScale=Math.min(W/1150,H/820);viewScale=Math.max(.46,viewScale)}addEventListener('resize',resize);resize();
 let seed=73;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/2147483646}
