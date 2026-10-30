@@ -1,6 +1,6 @@
 'use strict';
 let selectedVehicle='heli',playerTank=null,enemyHelis=[],engineers=[],supplies=[],forts=[],supplyClock=0,enemyQueue=[],dispatchTimer=8,dispatchCount=0,choiceVehicle='heli',drone=null,enemyDrones=[],engineerDispatchAge=0;
-const DRONE_DAMAGE=.1,DRONE_INTERVAL=.5;
+const DRONE_DAMAGE=5,DRONE_ENERGY=3,DRONE_INTERVAL=.5;
 const MISSILE_DAMAGE=[0,160,260,400],MISSILE_RADIUS=[0,210,250,290],TRACK_LIMIT=[0,.38,.75,1.35];
 const terrainMounds=[{x:1350,rise:210,top:70,fall:290,h:65},{x:3100,rise:190,top:90,fall:370,h:110},{x:5050,rise:230,top:70,fall:360,h:150},{x:7300,rise:260,top:90,fall:350,h:120}];
 function isFlyingVehicle(){return selectedVehicle==='heli'||selectedVehicle==='drone'}
@@ -15,7 +15,7 @@ function supplyPosition(s){return s.kind==='ground'?groundAt(s.x)-24:s.y}
 function dispatchEnemy(dt){engineerDispatchAge+=dt;if(enemyQueue.length===0)enemyQueue.push('tank','engineer','drone','tank');dispatchTimer-=dt;if(dispatchTimer>0)return;let priority=engineerDispatchAge>=35&&engineers.filter(e=>!e.dead).length<2;const type=priority?'engineer':enemyQueue[0];if(enemies().length>=5||(type==='heli'&&enemyHelis.some(e=>!e.dead))||(type==='drone'&&enemyDrones.filter(e=>!e.dead).length>=2)){dispatchTimer=1;return}const h=player();let x=clamp(h.x+800,1000,WORLD-350);if(x-h.x<400)x=clamp(h.x-800,250,WORLD-350);if(type==='heli'){for(let i=0;i<16&&Math.abs(slopeAt(x))>.08;i++)x=clamp(x+32,250,WORLD-350);const e=newEnemyHeli(x);e.dir=h.x<x?-1:1;e.flip=e.dir;enemyHelis.push(e)}else if(type==='drone')enemyDrones.push(newDrone(x,true));else if(type==='engineer'){engineers.push({x,y:groundAt(x)-23,vx:0,dir:-1,turn:-1,angle:0,hp:200,max:200,tread:0,turret:0,dead:false,phase:'travel',progress:0,work:0,site:x-200,cd:0,stage:'engineer'});engineerDispatchAge=0}else addTank(x);if(!priority)enemyQueue.shift();dispatchCount++;dispatchTimer=10;toast(type==='heli'||type==='drone'?'敌方飞行单位进入战区':type==='engineer'?'敌方工程装甲车已派出':'敌方装甲单位已派出')}
 function turretAim(t,tx,ty){const pivot={x:t.x,y:t.y-23};const a=Math.atan2(ty-pivot.y,tx-pivot.x);const length=(t.allied?save.tracks:t.level||1)>1?75:61;return{x:pivot.x+Math.cos(a)*length,y:pivot.y+Math.sin(a)*length,a,dx:Math.cos(a),dy:Math.sin(a),pivot}}
 function pushAircraft(e,dt){const h=player();if(e.dead||h.dead)return;let dx=e.x-h.x,dy=e.y-h.y,rx=selectedVehicle==='heli'?130:92,ry=selectedVehicle==='heli'?65:55;let norm=Math.hypot(dx/rx,dy/ry);if(norm>=1)return;if(Math.abs(dx)<1)dx=h.dir*8;const sx=dx/Math.max(1,Math.hypot(dx,dy)),sy=dy/Math.max(1,Math.hypot(dx,dy)),penetration=(1-norm)*75;e.x=clamp(e.x+sx*penetration,120,WORLD-150);if(!e.grounded)e.y=Math.min(groundAt(e.x)-60,e.y+sy*penetration-8);e.vx+=sx*(60+Math.abs(h.vx)*.6);e.vy-=20;e.evade=2.5;e.cd=Math.max(e.cd,1.2)}
-function spendShot(h){if(!h.shotCredit){if(h.energy<1)return false;h.energy-=1;h.shotCredit=h.drone?25:5}h.shotCredit--;return true}
+function spendShot(h){if(h.drone){if(h.energy<DRONE_ENERGY)return false;h.energy-=DRONE_ENERGY;h.shotCredit=0;return true}if(!h.shotCredit){if(h.energy<1)return false;h.energy-=1;h.shotCredit=5}h.shotCredit--;return true}
 function enemies(){return [...tanks,...enemyHelis,...engineers,...enemyDrones].filter(t=>!t.dead)}
 function targetRadius(t){return t.drone?21:t.enemy?66:40}
 function damageEnemy(t,d){if(t.dead)return;t.hp=Math.max(0,t.hp-d);t.hit=.16;if(t.hp<=0){t.hp=0;t.dead=true;if(t.enemy&&!t.drone)dispatchTimer=Math.max(dispatchTimer,20);kills++;const reward=t.enemy?240:t.phase?200:150;save.cash+=reward;persist();effects(t.x,t.y,t.enemy?90:55,t.enemy?1.8:1.25);toast(`目标摧毁  +${reward} 资金`)}}
@@ -89,7 +89,7 @@ function separateVehicles(a,b,dt){const aa=bodyBox(a),bb=bodyBox(b),dx=b.x-a.x,d
  if(vertical){a.y-=sign*push*wa;b.y+=sign*push*wb;a.vy-=sign*25*wa;b.vy+=sign*25*wb}else{a.x=clamp(a.x-sign*push*wa,80,WORLD-80);b.x=clamp(b.x+sign*push*wb,80,WORLD-80);const relative=Math.abs((a.vx||0)-(b.vx||0)),impulse=Math.min(110,25+relative*.45);a.vx-=sign*impulse*wa;b.vx+=sign*impulse*wb}
  for(const [v,box] of [[a,aa],[b,bb]]){if(box.air)v.y=Math.min(v.y,groundAt(v.x)-(v.drone?22:48));else v.y=groundAt(v.x)-(v===heli||v.enemy?48:23);if(v.enemy&&!v.drone){v.evade=2.5;v.cd=Math.max(v.cd,1.2)}}return true}
 function resolveVehicleContacts(dt){const all=[player(),...enemies()];for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++)if(!all[i].dead&&!all[j].dead)separateVehicles(all[i],all[j],dt)}
-VEHICLE_CARDS.drone={title:'轻型无人机',code:'U-35',desc:'35 耐久 · 轻型飞行',detail:'无需助跑，WASD 自由飞行。每发伤害 0.1，射击间隔 0.5 秒，每 25 发消耗 1 能量；配有枪口雷射。'};
+VEHICLE_CARDS.drone={title:'轻型无人机',code:'U-35',desc:'35 耐久 · 轻型飞行',detail:'无需助跑，WASD 自由飞行。每发伤害 5，射击间隔 0.5 秒，每发消耗 3 能量；配有枪口雷射。'};
 
 function vehicleDisplayName(){return VEHICLE_CARDS[selectedVehicle]?.title||'载具'}
 
