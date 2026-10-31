@@ -1,8 +1,9 @@
 'use strict';
 // Entirely new side-view airframes. Each aircraft owns its outline and assemblies;
 // no original helicopter, fighter or drone renderer is used here.
+const classicHelicopterArt=drawHeli;
 const AIRFRAME_MODELS={
- heli:{family:'heli',shape:0,name:'双梁突击机体',color:'#536f70',light:'#8ca5a0',canopy:'#8ac5d4',rotors:[[-5,-64,169,4]],tail:'open',gear:[-49,90],hull:[[-86,-18],[-51,-40],[18,-43],[72,-28],[112,-5],[119,17],[93,32],[-45,31],[-80,12]],glass:[[20,-36],[66,-24],[98,-4],[89,7],[43,2],[16,-12]]},
+ heli:{family:'heli',shape:0,name:'经典黑黄武装机体',color:'#536f70',light:'#8ca5a0',canopy:'#8ac5d4',rotors:[[-5,-64,169,4]],tail:'open',gear:[-49,90],hull:[[-86,-18],[-51,-40],[18,-43],[72,-28],[112,-5],[119,17],[93,32],[-45,31],[-80,12]],glass:[[20,-36],[66,-24],[98,-4],[89,7],[43,2],[16,-12]]},
  machine_31:{family:'heli',shape:1,name:'水滴座舱轻型机体',color:'#577c79',light:'#95b5a6',canopy:'#9ce0df',rotors:[[-12,-55,137,3]],tail:'open',gear:[-32,65],hull:[[-63,-15],[-45,-36],[-8,-42],[36,-36],[78,-17],[98,3],[85,22],[49,30],[-35,23],[-59,8]],glass:[[-3,-35],[33,-30],[69,-14],[85,2],[64,16],[18,13],[-4,-4]]},
  machine_32:{family:'heli',shape:2,name:'阶梯双座突击机体',color:'#485969',light:'#8196a1',canopy:'#9cc4d4',rotors:[[-20,-66,158,5]],tail:'open',gear:[-47,88],hull:[[-89,-19],[-48,-39],[-15,-38],[0,-51],[34,-43],[45,-28],[75,-24],[123,4],[131,17],[110,28],[35,31],[-69,22]],glass:[[-11,-32],[6,-43],[28,-38],[38,-24],[73,-18],[108,4],[72,6],[34,-7],[0,-12]]},
  machine_33:{family:'heli',shape:3,name:'同轴双旋翼装甲机体',color:'#65715b',light:'#a3ad8a',canopy:'#b9cebb',rotors:[[-6,-76,154,3],[-6,-58,148,3]],tail:'none',gear:[-52,86],hull:[[-89,-24],[-45,-43],[28,-43],[75,-27],[116,-1],[118,21],[78,35],[-60,30],[-86,10]],glass:[[31,-36],[69,-22],[98,-2],[84,12],[45,8],[22,-13]]},
@@ -70,7 +71,7 @@ function droneAirframe(craft,scale,preview,model){const p=airPalette(model,craft
  else{for(const [x,y]of [[-39,-17],[37,-17],[-39,19],[37,19]])droneRotor(x,y,19,phase+x*.1,p,true);airPanel([[-29,-14],[-10,-24],[22,-18],[35,-1],[22,20],[-20,20],[-31,6]],p);airPanel([[-23,-9],[3,-16],[26,-5],[14,10],[-20,10]],p,true);rect(4,-10,15,6,p.glass);airPod(19,22,2,p);line(-18,18,-23,29,p.edge,3);line(18,18,25,29,p.edge,3);}
  circle(18,1,2.4,p.lamp);ctx.restore();if(craft.role==='support'||craft.role==='suicide')return;const a=!preview&&craft===player()?aim().a:craft.aimAngle||0,px=craft.x+Math.cos(a)*25,py=craft.y+7+Math.sin(a)*25,s=preview?scale:1;ctx.save();if(preview){ctx.translate(craft.x,craft.y);ctx.scale(s,s);ctx.translate(-craft.x,-craft.y)}line(craft.x+Math.cos(a)*12,craft.y+7+Math.sin(a)*12,px,py,p.dark,5);line(craft.x+Math.cos(a)*12,craft.y+7+Math.sin(a)*12,px,py,p.edge,2);circle(px,py,1.8,p.accent);ctx.restore()}
 // These are the public renderer entry points used by previews, pilots and both AIs.
-drawHeli=function(x,y,scale,angle,gear,flip,showcase=false,entity=null){const craft=entity||heli,model=AIRFRAME_MODELS[entity?.variant]||AIRFRAME_MODELS.heli;return helicopterAirframe(x,y,scale,angle,gear,flip,showcase,craft,model)};
+drawHeli=function(x,y,scale,angle,gear,flip,showcase=false,entity=null){const model=AIRFRAME_MODELS[entity?.variant];if(!model||entity?.variant==='heli')return classicHelicopterArt(x,y,scale,angle,gear,flip,showcase,entity);return helicopterAirframe(x,y,scale,angle,gear,flip,showcase,entity,model)};
 drawFighter=function(craft,scale=1,showcase=false){const model=AIRFRAME_MODELS[craft.variant]||AIRFRAME_MODELS.fighter;return fighterAirframe(craft,scale,showcase,model)};
 drawDrone=function(craft,scale=1,preview=false){if(craft.author)return drawAuthorCube(craft,scale);const model=AIRFRAME_MODELS[craft.variant]||AIRFRAME_MODELS.drone;return droneAirframe(craft,scale,preview,model)};
 for(const [key,model]of Object.entries(AIRFRAME_MODELS)){if(VEHICLE_CARDS[key])VEHICLE_CARDS[key].detail+=' 独立机体：'+model.name+'。';}
