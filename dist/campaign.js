@@ -1,7 +1,7 @@
 'use strict';
 // Campaign rules are separate from the shared movement, weapons and audio systems.
 const CAMPAIGN_LEVELS = [
- {id:1,title:'沙丘前哨',type:'clear',theme:'desert',waves:2,size:2,brief:'清除两波前哨守军，打开通向内陆的道路。',tip:'第一波只有两辆轻型坦克。用雷射瞄准炮塔附近。',types:['tank','tank'],distance:2000},
+ {id:1,title:'沙丘前哨',type:'clear',theme:'desert',waves:2,size:2,brief:'清除两波前哨守军，打开通向内陆的道路。',tip:'第一波只有两辆轻型坦克。用雷射瞄准炮塔附近。',types:['tank','m109'],distance:2000},
  {id:2,title:'松林密件',type:'steal',theme:'forest',waves:3,size:2,brief:'靠近林间档案箱取得机密，然后返回绿色撤离区。',tip:'无需消灭全部守军。接近文件后自动拾取，带回出发点。',types:['tank','drone','tank'],distance:2400},
  {id:3,title:'冰原断电',type:'destroy',theme:'snow',waves:3,size:3,brief:'摧毁雪原雷达基地的两座军事设施。',tip:'基地有独立耐久，主炮、机枪和导弹均可造成伤害。',types:['tank','m1a2','drone'],distance:2300},
  {id:4,title:'港湾守望',type:'defend',theme:'coast',waves:3,size:3,brief:'守住我方机密终端，击退三波登陆部队。',tip:'红色炮弹能伤害终端。工程装甲车可以在前方筑垒阻挡地面进攻。',types:['tank','drone','tank'],distance:1100},
@@ -44,7 +44,7 @@ function openOperations(){
 function openMissionBrief(id){
  const level=id==='endless'?null:CAMPAIGN_LEVELS[id-1];if(id!=='endless'&&(!level||id>campaignProgress.unlocked))return;
  selectedMission=id;
- openModal(`<div class="eyebrow">${level?'CAMPAIGN / 第 '+String(id).padStart(2,'0')+' 关':'ENDLESS / 无尽战场'}</div><h2>${level?level.title:'没有终点的战线'}</h2><div class="brief-map" style="background:linear-gradient(155deg,${MAP_THEMES[level?.theme||'desert'].sky.join(',')})"><span>${MAP_THEMES[level?.theme||'desert'].name}</span><b>${level?missionTypeName(level.type):'∞'}</b></div><p class="mission-brief">${level?level.brief:'逐波击退混合部队。每到第 5、10、15……波，全部敌军永久增加 5 点攻击与 5 点防御；波次、攻击、防御持续增长，没有人为上限。'}</p><p>${level?level.tip:'每波逐个派出敌军，清场后进入下一波。防御抵扣所受伤害，任何命中至少造成原伤害的 10%，让弱火力仍有作用。每通过 5 波，战场环境轮换。'}</p><div class="brief-actions"><button class="secondary" id="backLevels">返回选关</button><button class="primary" id="prepareVehicle">选择载具 <b>↗</b></button></div>`);
+ openModal(`<div class="eyebrow">${level?'CAMPAIGN / 第 '+String(id).padStart(2,'0')+' 关':'ENDLESS / 无尽战场'}</div><h2>${level?level.title:'没有终点的战线'}</h2><div class="brief-map" style="background:linear-gradient(155deg,${MAP_THEMES[level?.theme||'wasteland'].sky.join(',')})"><span>${MAP_THEMES[level?.theme||'wasteland'].name}</span><b>${level?missionTypeName(level.type):'∞'}</b></div><p class="mission-brief">${level?level.brief:'逐波击退混合部队。每到第 5、10、15……波，全部敌军永久增加 5 点攻击与 5 点防御；波次、攻击、防御持续增长，没有人为上限。'}</p><p>${level?level.tip:'每波逐个派出不同兵种，清场后进入下一波。固定在原版废弃工业区作战；防御抵扣伤害，任何命中至少造成原伤害的 10%。'}</p><div class="brief-actions"><button class="secondary" id="backLevels">返回选关</button><button class="primary" id="prepareVehicle">选择载具 <b>↗</b></button></div>`);
  $('backLevels').onclick=openOperations;$('prepareVehicle').onclick=openVehicleSelection;
 }
 const originalVehicleSelection=openVehicleSelection;
@@ -60,8 +60,8 @@ start=function(kind='heli'){
 };
 function beginOperation(id){
  const level=id==='endless'?null:CAMPAIGN_LEVELS[id-1];
- operation={active:true,id,endless:!level,level,wave:0,pending:[],spawnIn:0,nextIn:2,finished:false,carrying:false,markedKills:0,markedTotal:level?.type==='hunt'?level.waves:0,objects:[],elapsed:0};
- enemyQueue=[];applyOperationMap(level?.theme||'desert',level?.id||1);
+ operation={active:true,id,endless:!level,level,wave:0,rosterCursor:0,pending:[],spawnIn:0,nextIn:2,finished:false,carrying:false,markedKills:0,markedTotal:level?.type==='hunt'?level.waves:0,objects:[],elapsed:0};
+ enemyQueue=[];applyOperationMap(level?.theme||'wasteland',level?.id||1);
  const h=player();h.x=400;h.y=groundAt(400)-(selectedVehicle==='drone'?135:isFlyingVehicle()?70:23);
  if(level?.type==='steal')operation.objects.push({kind:'file',x:level.distance,y:groundAt(level.distance)-70,hp:1,max:1,dead:false});
  if(level?.type==='destroy')for(let i=0;i<(level.id===8?3:2);i++){const x=level.distance+i*240;operation.objects.push({kind:'base',x,y:groundAt(x)-65,hp:level.id===8?600:420,max:level.id===8?600:420,dead:false});}
@@ -81,10 +81,11 @@ function applyOperationMap(theme,index){
 function endlessBonus(wave){return Math.floor(Math.max(0,wave)/5)*5}
 function beginWave(){
  const op=operation;op.wave++;op.nextIn=0;op.spawnIn=0;
- if(op.endless&&op.wave>1&&(op.wave-1)%5===0){const themes=Object.keys(MAP_THEMES);op.theme=themes[Math.floor((op.wave-1)/5)%themes.length];}
  const l=op.level,count=op.endless?3+Math.min(5,Math.floor((op.wave-1)/3)):l.size;
- const pool=l?.types||['tank','drone','tank','heli','m1a2','m109','m270','engineer'];
- op.pending=Array.from({length:count},(_,i)=>({type:pool[(i+op.wave-1)%pool.length],marked:false}));
+ const pool=l?.types||ENEMY_ROTATION;
+ const cursor=op.endless?op.rosterCursor:op.wave-1;
+ op.pending=Array.from({length:count},(_,i)=>({type:pool[(i+cursor)%pool.length],marked:false}));
+ if(op.endless)op.rosterCursor=(cursor+count)%pool.length;
  if(l?.type==='hunt')op.pending[op.pending.length-1]={type:l.id===9?'heli':'m1a2',marked:true};
  if(op.wave===1&&l?.id===1)op.pending=[{type:'tank'},{type:'tank'}];
  if(op.endless){campaignProgress.bestWave=Math.max(campaignProgress.bestWave,op.wave);persistCampaign()}
@@ -126,16 +127,16 @@ damageEnemy=function(t,d){const wasDead=t.dead;originalDamageEnemy(t,Math.max(d*
 function damageObjective(o,d){if(o.dead||d<=0)return;o.hp=Math.max(0,o.hp-d);if(o.hp===0){o.dead=true;effects(o.x,o.y,75,1.6);if(o.allied)finishOperation(false);else{save.cash+=200;persist()}}}
 function missionMissileContact(m,x0,y0,x1,y1){if(!operation.active||operation.finished)return null;let best=null;for(const o of operation.objects){if(o.dead||o.kind==='file'||!!m.enemy!==!!o.allied)continue;const t=segmentEntryTime(x0,y0,x1,y1,o.x-62,o.y-55,124,115);if(t!==null&&(!best||t<best.t))best={t,target:o}}return best}
 function missionProjectileHit(b){if(!operation.active||operation.finished||b.life<=0)return false;for(const o of operation.objects){if(o.dead||o.kind==='file'||!!b.enemy!==!!o.allied)continue;if(segmentHit(b.px,b.py,b.x,b.y,o.x-62,o.y-55,124,115)){damageObjective(o,b.damage);b.life=0;if(b.splash)areaBlast(b.x,b.y,b.splash,b.damage,null,o,!!b.enemy);impactEffect(b.x,b.y,false);return true}}return false}
-function areaBlast(x,y,radius,damage,exclude=null,excludeObject=null,enemy=false){effects(x,y,36,.9);rings.push({x,y,r:5,life:.4,speed:radius/.4});const targets=enemy?[player()]:enemies();for(const e of targets)if(e!==exclude&&!e.dead){const d=Math.hypot(e.x-x,e.y-y);if(d<radius){const amount=damage*(1-.5*d/radius);enemy?hurt(amount):damageEnemy(e,amount);}}if(operation.active)for(const o of operation.objects)if(!o.dead&&!!o.allied===enemy&&o.kind!=='file'&&o!==excludeObject){const d=Math.hypot(o.x-x,o.y-y);if(d<radius+55)damageObjective(o,damage*(1-.5*Math.min(d/radius,1)));}for(const f of forts)if(!f.dead&&!!f.allied===enemy&&Math.abs(f.x+f.rise-x)<radius)damageFort(f,damage)}
+function areaBlast(x,y,radius,damage,exclude=null,excludeObject=null,enemy=false){effects(x,y,36,.9);rings.push({x,y,r:5,life:.4,speed:radius/.4});const targets=enemy?friendlyTargets():enemies();for(const e of targets)if(e!==exclude&&!e.dead){const d=Math.hypot(e.x-x,e.y-y);if(d<radius){const amount=damage*(1-.5*d/radius);enemy?damageFriendly(e,amount):damageEnemy(e,amount);}}if(operation.active)for(const o of operation.objects)if(!o.dead&&!!o.allied===enemy&&o.kind!=='file'&&o!==excludeObject){const d=Math.hypot(o.x-x,o.y-y);if(d<radius+55)damageObjective(o,damage*(1-.5*Math.min(d/radius,1)));}for(const f of forts)if(!f.dead&&!!f.allied===enemy&&Math.abs(f.x+f.rise-x)<radius)damageFort(f,damage)}
 
 const originalDetonate=detonateMissile;
-detonateMissile=function(m){originalDetonate(m);if(!operation.active)return;const r=MISSILE_RADIUS[m.level||1],d=MISSILE_DAMAGE[m.level||1]+(m.enemy?(m.owner?.attackBonus||0):0);for(const o of operation.objects){if(o.dead||o.kind==='file'||!!o.allied!==!!m.enemy)continue;const distance=Math.hypot(o.x-m.x,o.y-m.y);if(distance<r+50)damageObjective(o,d*(1-.55*Math.min(distance/r,1)));}};
+detonateMissile=function(m){originalDetonate(m);if(!operation.active)return;const {radius:r,damage:d}=missileBlastProfile(m);for(const o of operation.objects){if(o.dead||o.kind==='file'||!!o.allied!==!!m.enemy)continue;const distance=Math.hypot(o.x-m.x,o.y-m.y);if(distance<r)damageObjective(o,d*(1-.55*Math.min(distance/r,1)));}};
 function updateOperation(dt){
  const op=operation;if(!op.active||op.finished||player().dead)return;
  const l=op.level,h=player();pruneOperationWrecks();if(!l)return;
  if(l.type==='steal'){
   const file=op.objects[0];if(!op.carrying&&Math.hypot(h.x-file.x,h.y-file.y)<170){op.carrying=true;file.dead=true;battleAudio.play('supply');toast('取得敌方机密 · 返回绿色撤离区');}
-  if(op.carrying&&h.x<700&&h.y>groundAt(h.x)-240)finishOperation(true);
+  const carrier=op.carrierUnit||h;if(op.carrying&&carrier.x<700&&carrier.y>groundAt(carrier.x)-240)finishOperation(true);
  }
  if(l.type==='destroy'&&op.objects.filter(o=>o.kind==='base').every(o=>o.dead))finishOperation(true);
  if(l.type==='hunt'&&op.markedKills>=op.markedTotal)finishOperation(true);
@@ -208,7 +209,7 @@ function drawModernVehicle(t,kind){
  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.angle||0);ctx.scale(t.turn||1,1);
  ctx.beginPath();ctx.roundRect(-60,-3,120,28,12);ctx.fillStyle='#15232a';ctx.fill();ctx.strokeStyle='#879181';ctx.lineWidth=2;ctx.stroke();
  for(let x=-45;x<=45;x+=15){circle(x,10,9,'#586454','#9caa8b');circle(x,10,3,'#26332d');}
- for(let i=0;i<32;i++){const phase=((i/32+(t.tread||0)/240)%1+1)%1;let x,y;if(phase<.42){x=48-phase/.42*96;y=-2}else if(phase<.5){const a=-Math.PI/2-(phase-.42)/.08*Math.PI;x=-48+12*Math.cos(a);y=10+12*Math.sin(a)}else if(phase<.92){x=-48+(phase-.5)/.42*96;y=22}else{const a=Math.PI/2-(phase-.92)/.08*Math.PI;x=48+12*Math.cos(a);y=10+12*Math.sin(a)}rect(x-3,y-2,6,4,'#a5aa8c')}
+ for(let i=0;i<32;i++){const phase=((i/32-(t.tread||0)/240)%1+1)%1;let x,y;if(phase<.42){x=48-phase/.42*96;y=-2}else if(phase<.5){const a=-Math.PI/2-(phase-.42)/.08*Math.PI;x=-48+12*Math.cos(a);y=10+12*Math.sin(a)}else if(phase<.92){x=-48+(phase-.5)/.42*96;y=22}else{const a=Math.PI/2-(phase-.92)/.08*Math.PI;x=48+12*Math.cos(a);y=10+12*Math.sin(a)}rect(x-3,y-2,6,4,'#a5aa8c')}
  poly([[-63,-5],[-50,-23],[45,-23],[64,-9],[56,1],[-59,1]],col,'#1a2b2d',3);line(-45,-20,43,-20,'#c0c19b',2);
  for(let i=0;i<6;i++)rect(-46+i*16,-13,11,9,sand?'#c1b68b':'#748872');
  if(kind==='m270'){poly([[-52,-23],[-50,-54],[-19,-55],[-2,-34],[-2,-23]],col,'#1a2b2d',2);poly([[-43,-49],[-23,-49],[-12,-36],[-43,-36]],'#284550','#a2b4a0');}
@@ -229,7 +230,7 @@ function drawModernVehicle(t,kind){
  if(t.hp<t.max){rect(t.x-42,t.y-74,84,4,'#1a282b');rect(t.x-42,t.y-74,84*t.hp/t.max,4,t.allied?'#91cdb0':'#df7e67')}
 }
 const originalBackground=background;
-background=function(menu=false){if(menu||!operation.active)return originalBackground(menu);drawMapBackground(MAP_THEMES[operation.theme])};
+background=function(menu=false){if(menu||!operation.active||operation.theme==='wasteland')return originalBackground(menu);drawMapBackground(MAP_THEMES[operation.theme])};
 function drawMapBackground(theme){
  const sky=ctx.createLinearGradient(0,0,0,H);theme.sky.forEach((c,i)=>sky.addColorStop(i/2,c));rect(0,0,W,H,sky);
  circle(W*.77,H*.26,theme.scene==='rain'?25:42,theme.scene==='snow'?'#ecf5ec70':'#ffe9b547');
@@ -246,7 +247,7 @@ function drawMapBackground(theme){
  if(scene==='snow'||scene==='rain')for(let i=0;i<65;i++){const x=((i*143+time*(scene==='rain'?-90:12))%(W+100)+W+100)%(W+100)-50,y=(i*97+time*(scene==='rain'?650:34))%H;if(scene==='rain')line(x,y,x-5,y+20,'#d5e6e638',1);else circle(x,y,1.5,'#eff8f280');}
 }
 const originalTerrain=drawTerrain;
-drawTerrain=function(left,right){if(!operation.active)return originalTerrain(left,right);const t=MAP_THEMES[operation.theme];let points=[[left,GROUND+800]];for(let x=left;x<=right+12;x+=12)points.push([x,groundAt(x)]);points.push([right+12,GROUND+800]);poly(points,t.soil,t.edge,4);for(let x=Math.floor(left/65)*65;x<right;x+=65){line(x,groundAt(x)+18,x+26,groundAt(x+26)+22,t.edge+'55',2);if(['forest','autumn','highland'].includes(operation.theme)){line(x+8,groundAt(x+8),x+5,groundAt(x+8)-10,t.edge,2)}}for(const f of forts)if(!f.dead){const top=GROUND-fortHeight(f);for(let i=0;i<5;i++)line(f.x+f.rise+i*20,top,f.x+f.rise+10+i*20,top+12,'#edd6a477',2);}};
+drawTerrain=function(left,right){if(!operation.active||operation.theme==='wasteland')return originalTerrain(left,right);const t=MAP_THEMES[operation.theme];let points=[[left,GROUND+800]];for(let x=left;x<=right+12;x+=12)points.push([x,groundAt(x)]);points.push([right+12,GROUND+800]);poly(points,t.soil,t.edge,4);for(let x=Math.floor(left/65)*65;x<right;x+=65){line(x,groundAt(x)+18,x+26,groundAt(x+26)+22,t.edge+'55',2);if(['forest','autumn','highland'].includes(operation.theme)){line(x+8,groundAt(x+8),x+5,groundAt(x+8)-10,t.edge,2)}}for(const f of forts)if(!f.dead){const top=GROUND-fortHeight(f);for(let i=0;i<5;i++)line(f.x+f.rise+i*20,top,f.x+f.rise+10+i*20,top+12,'#edd6a477',2);}};
 function drawMissionObjects(){
  if(!operation.active)return;
  for(const o of operation.objects){if(o.dead){if(o.kind==='base')poly([[o.x-65,o.y+60],[o.x-45,o.y+32],[o.x+30,o.y+28],[o.x+66,o.y+60]],'#363b39');continue;}const allied=o.allied,col=allied?'#9be4c7':'#f4b96a';
@@ -255,7 +256,7 @@ function drawMissionObjects(){
   ctx.textAlign='center';ctx.font='bold 14px sans-serif';ctx.fillStyle=col;ctx.fillText(o.kind==='file'?'敌方机密 · 靠近拾取':allied?'我方机密终端':'敌方军事设施',0,o.kind==='file'?-60:-135);ctx.textAlign='left';ctx.restore();
  }
  if(operation.level?.type==='steal'){const y=groundAt(450);rect(260,y-5,380,7,'#8fe4bf');ctx.save();ctx.globalAlpha=.12+.04*Math.sin(time*3);rect(260,y-240,380,240,'#8fe4bf');ctx.restore();ctx.fillStyle='#c8f0d7';ctx.font='18px sans-serif';ctx.fillText('撤离区',380,y-30);}
- if(operation.carrying){const h=player();rect(h.x-10,h.y-52,20,25,'#eddb9b');for(let i=0;i<3;i++)line(h.x-6,h.y-46+i*5,h.x+6,h.y-46+i*5,'#596c59',1);}
+ if(operation.carrying){const h=operation.carrierUnit||player();rect(h.x-10,h.y-52,20,25,'#eddb9b');for(let i=0;i<3;i++)line(h.x-6,h.y-46+i*5,h.x+6,h.y-46+i*5,'#596c59',1);}
  for(const e of enemies())if(e.marked){const y=e.y-(e.enemy?125:70);poly([[e.x,y-12],[e.x+10,y],[e.x,y+12],[e.x-10,y]],null,'#ffdb73',2);}
  const target=missionObjective();if(target?.x!==undefined){const left=camera.x+50/viewScale,right=camera.x+(W-50)/viewScale,x=clamp(target.x,left,right),y=clamp(target.y-160,camera.y+Math.min(300,H*.35)/viewScale,camera.y+(H-210)/viewScale);if(target.x<left||target.x>right){ctx.fillStyle='#ffe1a1';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.fillText(target.x<left?'◀':'▶',x,y);ctx.textAlign='left';}}
 }
