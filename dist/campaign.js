@@ -84,7 +84,7 @@ function beginWave(){
  const l=op.level,count=op.endless?3+Math.min(5,Math.floor((op.wave-1)/3)):l.size;
  const pool=l?.types||ENEMY_ROTATION;
  const cursor=op.endless?op.rosterCursor:op.wave-1;
- op.pending=Array.from({length:count},(_,i)=>({type:pool[(i+cursor)%pool.length],marked:false}));
+ op.pending=Array.from({length:count},(_,i)=>({type:pool[(i+cursor)%pool.length],marked:false}));if(op.endless&&typeof weightedEnemyBatch==='function')op.pending=weightedEnemyBatch(count).map(type=>({type,marked:false}));else if(!op.endless&&typeof expandedCampaignRoster==='function')op.pending=expandedCampaignRoster(op.pending,op.level.id);
  if(op.endless)op.rosterCursor=(cursor+count)%pool.length;
  if(l?.type==='hunt')op.pending[op.pending.length-1]={type:l.id===9?'heli':'m1a2',marked:true};
  if(op.wave===1&&l?.id===1)op.pending=[{type:'tank'},{type:'tank'}];
