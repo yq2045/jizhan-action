@@ -42,6 +42,12 @@ function bloomLegAttack(u,a,enemy=false){
  // Start with a visible lift. Contact is resolved by the animated leg on later frames.
  battleAudio.play('gear',{x:u.x,y:u.y,volume:.22});return f.interval;
 }
+// Bend an existing leg without telescoping either segment into a long arm.
+function solveBloomLeg(hip,goal,upper,lower,bend){
+ const dx=goal.x-hip.x,dy=goal.y-hip.y,raw=Math.hypot(dx,dy)||1,d=clamp(raw,Math.abs(upper-lower)+.01,upper+lower-.01),ux=dx/raw,uy=dy/raw;
+ const along=(upper*upper-lower*lower+d*d)/(2*d),height=Math.sqrt(Math.max(0,upper*upper-along*along));
+ return{foot:{x:hip.x+ux*d,y:hip.y+uy*d},knee:{x:hip.x+ux*along-uy*height*bend,y:hip.y+uy*along+ux*height*bend}};
+}
 function bloomLegRig(u,preview=false){
  const pose=clamp(u.bloomPose??u.form??0,0,2),open=clamp(pose,0,1),bloom=clamp(pose-1,0,1),phase=preview?time*5:u.gait||0,moving=preview||Math.abs(u.vx||0)>2;
  const legs=[];for(let index=0;index<6;index++){
@@ -53,12 +59,12 @@ function bloomLegRig(u,preview=false){
   knee.x=mix(hip.x*.75,knee.x,open);knee.y=mix(-19,knee.y,open);foot.x=mix(hip.x*1.1,foot.x,open);foot.y=mix(19,foot.y,open);
   const attack=u.legAttack,active=!!attack&&attack.index===index&&u.form!==0;
   let grip=0;if(active){
-   const t=attack.elapsed,lift={x:hip.x+(i===0?-16:i===2?16:0),y:-69},target=bloomToLocal(u,Math.cos(attack.angle)*126,-12+Math.sin(attack.angle)*126),ease=v=>{v=clamp(v,0,1);return v*v*(3-2*v)};
+   const upper=Math.hypot(knee.x-hip.x,knee.y-hip.y),lower=Math.hypot(foot.x-knee.x,foot.y-knee.y),t=attack.elapsed,lift={x:hip.x+(i===0?-18:i===2?18:0),y:hip.y-32},target=bloomToLocal(u,Math.cos(attack.angle)*86,-8+Math.sin(attack.angle)*72),ease=v=>{v=clamp(v,0,1);return v*v*(3-2*v)};
    let f;if(t<BLOOM_STRIKE_START){f=ease(t/BLOOM_STRIKE_START);foot.x=mix(foot.x,lift.x,f);foot.y=mix(foot.y,lift.y,f);}
    else if(t<.31){f=ease((t-BLOOM_STRIKE_START)/.13);foot.x=mix(lift.x,target.x,f);foot.y=mix(lift.y,target.y,f);}
    else if(t<.4){foot.x=target.x;foot.y=target.y;grip=clamp((t-.31)/.06,0,1);}
    else{f=ease((t-.4)/(.64-.4));foot.x=mix(target.x,foot.x,f);foot.y=mix(target.y,foot.y,f);grip=1-f;}
-   knee.x=mix(hip.x,foot.x,.52);knee.y=mix(hip.y,foot.y,.45)-25;
+   const solved=solveBloomLeg(hip,foot,upper,lower,foot.x<hip.x?1:-1);knee.x=solved.knee.x;knee.y=solved.knee.y;foot.x=solved.foot.x;foot.y=solved.foot.y;
   }
   const dx=foot.x-knee.x,dy=foot.y-knee.y,len=Math.hypot(dx,dy)||1,plate={x:mix(knee.x,foot.x,.52),y:mix(knee.y,foot.y,.52),angle:Math.atan2(dy,dx)-Math.PI/2,w:back?14:17,h:22+bloom*17};
   legs.push({index,back,hip,knee,foot,plate,active,grip});
@@ -111,8 +117,9 @@ function drawBloomLeg(leg,open,accent){
  circle(hip.x,hip.y,4,'#8291a7','#172434');circle(knee.x,knee.y,4.3,'#c3c9d5','#23324a');
  // Plate and shin use the same joint transform, including while a leg attacks.
  bloomPetal(plate.x,plate.y,plate.w,plate.h,plate.angle,!leg.back);
- ctx.save();ctx.translate(foot.x,foot.y);ctx.rotate(plate.angle);const gap=leg.active?mix(11,3,leg.grip):4;
- line(-4,-2,-gap,5,'#cad1df',2.5);line(-gap,5,-2,9,'#cad1df',2.5);line(4,-2,gap,5,'#cad1df',2.5);line(gap,5,2,9,'#cad1df',2.5);circle(0,0,2.5,leg.active?accent:'#556984');ctx.restore();ctx.restore();
+ ctx.save();ctx.translate(foot.x,foot.y);ctx.rotate(plate.angle+(leg.active?leg.grip*.35:0));
+ // Three short walking toes; no hand or pincer at the end of the leg.
+ for(const x of [-5,0,5]){line(x,-1,x*1.3,5,'#b9c4d1',2);line(x*1.3,5,x*1.3+2,7,'#b9c4d1',1.5)}ctx.restore();ctx.restore();
 }
 function drawBloom(u,scale=1,preview=false){
  const pose=clamp(u.bloomPose??u.form??0,0,2),open=clamp(pose,0,1),bloom=clamp(pose-1,0,1),accent=u.enemy?'#ff9b8e':'#a3e4d6',legs=bloomLegRig(u,preview);
